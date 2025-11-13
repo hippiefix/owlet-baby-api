@@ -61,22 +61,35 @@ async def get_baby():
             # 4. EXTRACT VALUES
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
-            mov = raw.get("movement", 0)
+            # SLEEP STAGE: This is the real one!
+            sleep_stage = raw.get("sleep_state")  # Returns: "deep", "light", "awake", or None
 
             hr_val = int(hr) if hr is not None else "—"
             o2_val = int(o2) if o2 is not None else "—"
-            mov_val = int(mov)
 
-            # 5. DETERMINE STATUS
-            if hr_val == "—" and o2_val == "—":
-                status = "Sock on – no signal"
+            # 5. DETERMINE SLEEP STATUS FROM REAL DATA
+            if sleep_stage == "deep":
+                status = "Deep Sleep"
+                sleep_emoji = ":sleeping:"
+            elif sleep_stage == "light":
+                status = "Light Sleep"
+                sleep_emoji = ":yawning_face:"
+            elif sleep_stage == "awake":
+                status = "Awake"
+                sleep_emoji = ":eye:"
             else:
+                # Fallback: use movement if sleep_state is missing
+                mov = raw.get("movement", 0)
+                mov_val = int(mov)
                 if mov_val == 0:
                     status = "Peaceful"
+                    sleep_emoji = ":sleeping:"
                 elif mov_val <= 3:
                     status = "Resting"
+                    sleep_emoji = ":yawning_face:"
                 else:
                     status = "Active"
+                    sleep_emoji = ":eye:"
 
             # 6. CALCULATE AGE
             age_str = ""
@@ -96,14 +109,6 @@ async def get_baby():
             heart_emoji = ":heart:"
             lungs_emoji = ":lungs:"
 
-            # Map status to correct emoji
-            if status == "Peaceful":
-                sleep_emoji = ":sleeping:"
-            elif status == "Resting":
-                sleep_emoji = ":yawning_face:"
-            else:  # Active
-                sleep_emoji = ":eyes:"
-
             message = (
                 f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
                 f"{heart_emoji} Heart: {hr_val} BPM "
@@ -111,7 +116,6 @@ async def get_baby():
                 f"{sleep_emoji} {status}"
             )
 
-            # RETURN PLAIN TEXT (NO JSON!)
             return PlainTextResponse(message)
 
         except Exception as e:
