@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from pyowletapi.api import OwletAPI
+from pyowletapi.sock import Sock  # <-- Better live data
 import aiohttp
+import asyncio
 import os
 from datetime import datetime
 from dotenv import load_dotenv
@@ -8,11 +10,12 @@ from dotenv import load_dotenv
 load_dotenv()
 app = FastAPI()
 
-OWLET_REGION = os.getenv("OWLET_REGION")
+# === CONFIG ===
+OWLET_REGION = os.getenv("OWLET_REGION", "us")  # Try 'us' if 'world' fails
 OWLET_EMAIL = os.getenv("OWLET_EMAIL")
 OWLET_PASSWORD = os.getenv("OWLET_PASSWORD")
 BABY_NAME = os.getenv("BABY_NAME", "Baby")
-BABY_BIRTHDATE = os.getenv("BABY_BIRTHDATE")
+BABY_BIRTHDATE = os.getenv("BABY_BIRTHDATE")  # MM/DD/YY
 
 @app.get("/")
 async def root():
@@ -22,35 +25,58 @@ async def root():
 async def get_baby():
     async with aiohttp.ClientSession() as session:
         try:
+            # === LOGIN ===
             api = OwletAPI(OWLET_REGION, OWLET_EMAIL, OWLET_PASSWORD, session=session)
             await api.authenticate()
 
-            # Find base station
+            # === FIND BASE STATION ===
             devices = await api.get_devices()
             base_station_dsn = None
+            sock_device = None
             for item in devices.get("response", []):
                 dev = item.get("device", {})
                 if "Monitors" in dev.get("product_name", "") or "SS3" in dev.get("model", ""):
                     base_station_dsn = dev["dsn"]
+                    sock_device = dev
                     break
             if not base_station_dsn:
-                raise HTTPException(500, "No base station")
+                raise HTTPException(500, "No Owlet base station found")
 
-            # Get live stats
-            props = await api.get_properties(base_station_dsn)
-            stats = props.get("properties", {})
+            # === USE SOCK CLASS + 3X RETRY FOR LIVE DATA ===
+            sock = Sock(api, sock_device)
+            stats = {}
+            for attempt in range(3):
+                props = await sock.update_properties()
+                stats = props.get("properties", {})
+                if stats.get("HEART_RATE") or stats.get("OXYGEN_LEVEL"):
+                    break  # Got live data!
+                if attempt < 2:
+                    await asyncio.sleep(5)  # Wait 5 sec
 
-            # Extract stats with multiple key fallbacks
-            hr = stats.get("HEART_RATE") or stats.get("heart_rate") or stats.get("hr") or "—"
-            o2 = stats.get("OXYGEN_LEVEL") or stats.get("oxygen_level") or stats.get("o2") or "—"
-            mov = stats.get("MOVEMENT") or stats.get("movement") or stats.get("mov") or 0
+            # === EXTRACT STATS (WITH ALL KEY VARIATIONS) ===
+            hr = (
+                stats.get("HEART_RATE") or stats.get("heart_rate") or
+                stats.get("hr") or stats.get("HR") or "—"
+            )
+            o2 = (
+                stats.get("OXYGEN_LEVEL") or stats.get("oxygen_level") or
+                stats.get("o2") or stats.get("O2") or "—"
+            )
+            mov = (
+                stats.get("MOVEMENT") or stats.get("movement") or
+                stats.get("mov") or stats.get("MOV") or 0
+            )
             temp = (
                 stats.get("BASE_STATION_TEMP") or stats.get("base_station_temp") or
-                stats.get("SKIN_TEMP") or stats.get("skin_temp") or stats.get("temp") or "—"
+                stats.get("SKIN_TEMP") or stats.get("skin_temp") or
+                stats.get("temp") or stats.get("TEMP") or "—"
             )
-            battery = stats.get("BATTERY_LEVEL") or stats.get("battery_level") or stats.get("bat") or "—"
+            battery = (
+                stats.get("BATTERY_LEVEL") or stats.get("battery_level") or
+                stats.get("bat") or stats.get("BAT") or "—"
+            )
 
-            # Convert to numbers
+            # === CONVERT TO NUMBERS ===
             try: hr = int(hr) if hr != "—" else "—"
             except: hr = "—"
             try: o2 = int(o2) if o2 != "—" else "—"
@@ -62,13 +88,13 @@ async def get_baby():
             try: battery = int(battery) if battery != "—" else "—"
             except: battery = "—"
 
-            # Smart status
+            # === SMART STATUS ===
             if hr == "—" and o2 == "—":
                 status = "Sock on – no signal"
             else:
                 status = "Sleeping" if mov == 0 else "Awake" if mov <= 3 else "Active"
 
-            # AGE: "2 months, 20 days"
+            # === AGE: "2 months, 21 days old" ===
             age_str = ""
             if BABY_BIRTHDATE:
                 try:
@@ -84,7 +110,7 @@ async def get_baby():
                 except:
                     age_str = "Age error"
 
-            # Build message
+            # === BUILD MESSAGE ===
             lines = [f"**{BABY_NAME}** – Live Dream Sock 3"]
             lines.append(f"• HR: **{hr}** bpm | O₂: **{o2}%** | {status} | Temp: **{temp}°C** | Battery: **{battery}%**")
             if age_str:
