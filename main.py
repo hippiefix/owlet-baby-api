@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from starlette.responses import PlainTextResponse
 from pyowletapi.api import OwletAPI
 from pyowletapi.sock import Sock
 import aiohttp
@@ -61,27 +62,19 @@ async def get_baby():
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
             mov = raw.get("movement", 0)
-            skin_temp_c = raw.get("skin_temperature")  # in °C
 
-            # Convert to numbers or fallback
             hr_val = int(hr) if hr is not None else "—"
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
-
-            # Convert °C → °F: °F = (°C × 9/5) + 32
-            if skin_temp_c is not None:
-                temp_f = round((float(skin_temp_c) * 9/5) + 32, 1)
-            else:
-                temp_f = "—"
 
             # 5. STATUS
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
             else:
                 if mov_val == 0:
-                    status = "Sleeping"
+                    status = "Peaceful"
                 elif mov_val <= 3:
-                    status = "Awake"
+                    status = "Resting"
                 else:
                     status = "Active"
 
@@ -98,17 +91,21 @@ async def get_baby():
                 except Exception:
                     age_str = "Age error"
 
-            # 7. FINAL CUTE MESSAGE WITH EMOJIS + °F + ORDER: Heart, Lungs, Thermometer, Sleep
+            # 7. FINAL CLEAN MESSAGE – NO **, NO |
+            baby_emoji = ":baby:"
+            heart_emoji = ":heart:"
+            lungs_emoji = ":lungs:"
+            sleep_emoji = ":sleeping:" if status == "Peaceful" else ":eyes:" if status == "Resting" else ":zap:"
+
             message = (
-                f"Baby {BABY_NAME} is {age_str}\n"
-                f"Heart: {hr_val} BPM | "
-                f"Lungs: {o2_val}% | "
-                f"Thermometer: {temp_f}°F | "
-                f"{'Sleepy face' if status == 'Sleeping' else 'Eyes' if status == 'Awake' else 'Lightning'} {status}"
+                f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
+                f"{heart_emoji} Heart: {hr_val} BPM "
+                f"{lungs_emoji} O2: {o2_val}% "
+                f"{sleep_emoji} Sleep: {status}"
             )
 
-            return {"message": message}
+            return PlainTextResponse(message)
 
         except Exception as e:
             print("Owlet error:", e)
-            raise HTTPException(500, f"Owlet error: {str(e)}")
+            return PlainTextResponse("Baby stats unavailable")
