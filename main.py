@@ -61,35 +61,44 @@ async def get_baby():
             # 4. EXTRACT VALUES
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
-            # SLEEP STAGE: This is the real one!
-            sleep_stage = raw.get("sleep_state")  # Returns: "deep", "light", "awake", or None
+            sleep_state_code = raw.get("sleep_state")
+            mov = raw.get("movement", 0)
 
             hr_val = int(hr) if hr is not None else "—"
             o2_val = int(o2) if o2 is not None else "—"
+            mov_val = int(mov)
 
-            # 5. DETERMINE SLEEP STATUS FROM REAL DATA
-            if sleep_stage == "deep":
-                status = "Deep Sleep"
-                sleep_emoji = ":sleeping:"
-            elif sleep_stage == "light":
-                status = "Light Sleep"
-                sleep_emoji = ":yawning_face:"
-            elif sleep_stage == "awake":
-                status = "Awake"
-                sleep_emoji = ":eye:"
+            # 5. DECODE SLEEP STATE FROM REAL CODE (priority over movement)
+            if hr_val == "—" and o2_val == "—":
+                status = "Sock on – no signal"
+                sleep_emoji = ":baby:"
             else:
-                # Fallback: use movement if sleep_state is missing
-                mov = raw.get("movement", 0)
-                mov_val = int(mov)
-                if mov_val == 0:
-                    status = "Peaceful"
-                    sleep_emoji = ":sleeping:"
-                elif mov_val <= 3:
-                    status = "Resting"
-                    sleep_emoji = ":yawning_face:"
+                if sleep_state_code is not None:
+                    # Decode Owlet sleep_state enum
+                    if sleep_state_code == 8:
+                        status = "Deep Sleep"
+                        sleep_emoji = ":sleeping:"
+                    elif 1 <= sleep_state_code <= 7:
+                        status = "Light Sleep"
+                        sleep_emoji = ":yawning_face:"
+                    elif sleep_state_code == 0:
+                        status = "Awake"
+                        sleep_emoji = ":eyes:"
+                    else:
+                        # Rare/undefined → fallback to movement
+                        status = "Evaluating Sleep"
+                        sleep_emoji = ":question:"
                 else:
-                    status = "Active"
-                    sleep_emoji = ":eye:"
+                    # No sleep_state → use movement fallback
+                    if mov_val == 0:
+                        status = "Deep Sleep"
+                        sleep_emoji = ":sleeping:"
+                    elif mov_val <= 3:
+                        status = "Light Sleep"
+                        sleep_emoji = ":yawning_face:"
+                    else:
+                        status = "Awake"
+                        sleep_emoji = ":eyes:"
 
             # 6. CALCULATE AGE
             age_str = ""
