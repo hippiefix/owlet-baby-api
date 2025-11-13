@@ -44,7 +44,7 @@ async def get_baby():
             if not sock_device:
                 raise HTTPException(500, "No Dream Sock 3 found")
 
-            # 3. SOCK + RETRY
+            # 3. FETCH LIVE DATA WITH RETRY
             sock = Sock(api, sock_device)
             raw = {}
 
@@ -67,7 +67,7 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 5. STATUS
+            # 5. DETERMINE STATUS
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
             else:
@@ -78,7 +78,7 @@ async def get_baby():
                 else:
                     status = "Active"
 
-            # 6. AGE
+            # 6. CALCULATE AGE
             age_str = ""
             if BABY_BIRTHDATE:
                 try:
@@ -91,19 +91,27 @@ async def get_baby():
                 except Exception:
                     age_str = "Age error"
 
-            # 7. FINAL CLEAN MESSAGE – NO **, NO |
+            # 7. FINAL MESSAGE WITH TWITCH EMOJI SHORTCODES
             baby_emoji = ":baby:"
             heart_emoji = ":heart:"
             lungs_emoji = ":lungs:"
-            sleep_emoji = ":sleeping:" if status == "Peaceful" else ":eyes:" if status == "Resting" else ":zap:"
+
+            # Map status to correct emoji
+            if status == "Peaceful":
+                sleep_emoji = ":sleeping:"
+            elif status == "Resting":
+                sleep_emoji = ":yawning_face:"
+            else:  # Active
+                sleep_emoji = ":eyes:"
 
             message = (
                 f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
                 f"{heart_emoji} Heart: {hr_val} BPM "
                 f"{lungs_emoji} O2: {o2_val}% "
-                f"{sleep_emoji} Sleep: {status}"
+                f"{sleep_emoji} {status}"
             )
 
+            # RETURN PLAIN TEXT (NO JSON!)
             return PlainTextResponse(message)
 
         except Exception as e:
