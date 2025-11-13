@@ -46,11 +46,33 @@ async def get_baby():
             props = await api.get_properties(base_station_dsn)
             stats = props.get("properties", {})
 
-            hr = stats.get("HEART_RATE", "—")
-            o2 = stats.get("OXYGEN_LEVEL", "—")
-            mov = stats.get("MOVEMENT", "—")
-            temp = stats.get("BASE_STATION_TEMP", stats.get("SKIN_TEMP", "—"))
-            battery = stats.get("BATTERY_LEVEL", "—")
+            # Convert strings to ints/floats where needed
+            try:
+                hr = int(stats.get("HEART_RATE", "—")) if stats.get("HEART_RATE", "—") != "—" else "—"
+            except:
+                hr = stats.get("HEART_RATE", "—")
+
+            try:
+                o2 = int(stats.get("OXYGEN_LEVEL", "—")) if stats.get("OXYGEN_LEVEL", "—") != "—" else "—"
+            except:
+                o2 = stats.get("OXYGEN_LEVEL", "—")
+
+            try:
+                mov = int(stats.get("MOVEMENT", "—")) if stats.get("MOVEMENT", "—") != "—" else 0
+            except:
+                mov = 0
+
+            try:
+                temp = float(stats.get("BASE_STATION_TEMP", stats.get("SKIN_TEMP", "—"))) if stats.get("BASE_STATION_TEMP", stats.get("SKIN_TEMP", "—")) != "—" else "—"
+            except:
+                temp = stats.get("BASE_STATION_TEMP", stats.get("SKIN_TEMP", "—"))
+
+            try:
+                battery = int(stats.get("BATTERY_LEVEL", "—")) if stats.get("BATTERY_LEVEL", "—") != "—" else "—"
+            except:
+                battery = stats.get("BATTERY_LEVEL", "—")
+
+            # Now safe to compare
             status = "Sleeping" if mov == 0 else "Awake" if mov <= 3 else "Active"
 
             lines = [f"**{BABY_NAME}** – Live Dream Sock 3"]
