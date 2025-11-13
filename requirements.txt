@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+pyowletapi
+aiohttp
+python-dotenv
