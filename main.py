@@ -43,31 +43,36 @@ async def get_baby():
             if not sock_device:
                 raise HTTPException(500, "No Dream Sock 3 found")
 
-            # 3. SOCK + 3× RETRY (wait longer – 10 s)
+            # 3. SOCK + RETRY
             sock = Sock(api, sock_device)
             raw = {}
 
             for attempt in range(3):
                 props = await sock.update_properties()
                 raw = props.get("properties", {})
-                print("Raw properties (attempt", attempt + 1, "):", raw)   # DEBUG
+                print("Raw properties (attempt", attempt + 1, "):", raw)
 
-                # Dream Sock 3 keys are **lower-case**
                 if raw.get("heart_rate") is not None or raw.get("oxygen_saturation") is not None:
                     break
-
                 if attempt < 2:
-                    await asyncio.sleep(10)   # give the sock time to settle
+                    await asyncio.sleep(10)
 
-            # 4. EXTRACT – use the **exact** keys
+            # 4. EXTRACT VALUES
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
             mov = raw.get("movement", 0)
+            skin_temp_c = raw.get("skin_temperature")  # in °C
 
-            # Convert to int or keep "—"
+            # Convert to numbers or fallback
             hr_val = int(hr) if hr is not None else "—"
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
+
+            # Convert °C → °F: °F = (°C × 9/5) + 32
+            if skin_temp_c is not None:
+                temp_f = round((float(skin_temp_c) * 9/5) + 32, 1)
+            else:
+                temp_f = "—"
 
             # 5. STATUS
             if hr_val == "—" and o2_val == "—":
@@ -93,15 +98,15 @@ async def get_baby():
                 except Exception:
                     age_str = "Age error"
 
-            # 7. FINAL MESSAGE
-            lines = [
-                f"**{BABY_NAME}** – Live Dream Sock 3",
-                f"• HR: **{hr_val}** bpm | O₂: **{o2_val}%** | {status}",
-            ]
-            if age_str:
-                lines.append(f"• Age: **{age_str}**")
+            # 7. FINAL CUTE MESSAGE WITH EMOJIS + °F + ORDER: Heart, Lungs, Thermometer, Sleep
+            message = (
+                f"Baby {BABY_NAME} is {age_str}\n"
+                f"Heart: {hr_val} BPM | "
+                f"Lungs: {o2_val}% | "
+                f"Thermometer: {temp_f}°F | "
+                f"{'Sleepy face' if status == 'Sleeping' else 'Eyes' if status == 'Awake' else 'Lightning'} {status}"
+            )
 
-            message = " | ".join(lines)
             return {"message": message}
 
         except Exception as e:
