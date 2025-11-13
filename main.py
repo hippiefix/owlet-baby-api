@@ -83,7 +83,7 @@ async def get_baby():
                         sleep_emoji = ":yawning_face:"
                     elif sleep_state_code == 0:
                         status = "Awake"
-                        sleep_emoji = ":eyes:"
+                        sleep_emoji = ":eye:"
                     else:
                         # Rare/undefined → fallback to movement
                         status = "Evaluating Sleep"
@@ -98,7 +98,7 @@ async def get_baby():
                         sleep_emoji = ":yawning_face:"
                     else:
                         status = "Awake"
-                        sleep_emoji = ":eyes:"
+                        sleep_emoji = ":eye:"
 
             # 6. CALCULATE AGE
             age_str = ""
@@ -130,3 +130,4 @@ async def get_baby():
         except Exception as e:
             print("Owlet error:", e)
             return PlainTextResponse("Baby stats unavailable")
+
