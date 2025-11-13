@@ -28,11 +28,11 @@ async def root():
 async def get_baby():
     async with aiohttp.ClientSession() as session:
         try:
-            # === 1. LOGIN ===
+            # 1. LOGIN
             api = OwletAPI(OWLET_REGION, OWLET_EMAIL, OWLET_PASSWORD, session=session)
             await api.authenticate()
 
-            # === 2. FIND DREAM SOCK 3 (base station) ===
+            # 2. FIND DREAM SOCK 3
             devices = await api.get_devices()
             sock_device = None
             for item in devices.get("response", []):
@@ -43,33 +43,33 @@ async def get_baby():
             if not sock_device:
                 raise HTTPException(500, "No Dream Sock 3 found")
 
-            # === 3. USE Sock CLASS + 3X RETRY FOR LIVE DATA ===
+            # 3. SOCK + 3× RETRY (wait longer – 10 s)
             sock = Sock(api, sock_device)
-            stats = {}
+            raw = {}
 
             for attempt in range(3):
                 props = await sock.update_properties()
-                raw_props = props.get("properties", {})
-                print("Raw Owlet properties:", raw_props)   # <-- DEBUG LOG
+                raw = props.get("properties", {})
+                print("Raw properties (attempt", attempt + 1, "):", raw)   # DEBUG
 
-                # Dream Sock 3 uses these exact keys:
-                hr = raw_props.get("HEART_RATE")
-                o2 = raw_props.get("OXYGEN_SATURATION")
-                mov = raw_props.get("MOVEMENT", 0)
-
-                if hr is not None or o2 is not None:
-                    stats = raw_props
+                # Dream Sock 3 keys are **lower-case**
+                if raw.get("heart_rate") is not None or raw.get("oxygen_saturation") is not None:
                     break
 
                 if attempt < 2:
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(10)   # give the sock time to settle
 
-            # === 4. EXTRACT VALUES (fallback to "—" only if truly missing) ===
-            hr_val = int(stats.get("HEART_RATE")) if stats.get("HEART_RATE") is not None else "—"
-            o2_val = int(stats.get("OXYGEN_SATURATION")) if stats.get("OXYGEN_SATURATION") is not None else "—"
-            mov_val = int(stats.get("MOVEMENT", 0))
+            # 4. EXTRACT – use the **exact** keys
+            hr = raw.get("heart_rate")
+            o2 = raw.get("oxygen_saturation")
+            mov = raw.get("movement", 0)
 
-            # === 5. SMART STATUS ===
+            # Convert to int or keep "—"
+            hr_val = int(hr) if hr is not None else "—"
+            o2_val = int(o2) if o2 is not None else "—"
+            mov_val = int(mov)
+
+            # 5. STATUS
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
             else:
@@ -80,7 +80,7 @@ async def get_baby():
                 else:
                     status = "Active"
 
-            # === 6. AGE CALCULATION ===
+            # 6. AGE
             age_str = ""
             if BABY_BIRTHDATE:
                 try:
@@ -93,7 +93,7 @@ async def get_baby():
                 except Exception:
                     age_str = "Age error"
 
-            # === 7. BUILD FINAL MESSAGE (NO TEMP, NO BATTERY) ===
+            # 7. FINAL MESSAGE
             lines = [
                 f"**{BABY_NAME}** – Live Dream Sock 3",
                 f"• HR: **{hr_val}** bpm | O₂: **{o2_val}%** | {status}",
@@ -102,9 +102,8 @@ async def get_baby():
                 lines.append(f"• Age: **{age_str}**")
 
             message = " | ".join(lines)
-
             return {"message": message}
 
         except Exception as e:
-            print("Owlet error:", e)  # <-- DEBUG LOG
+            print("Owlet error:", e)
             raise HTTPException(500, f"Owlet error: {str(e)}")
