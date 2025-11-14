@@ -109,7 +109,7 @@ async def get_baby():
             message = (
                 f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
                 f"{heart_emoji} Heart: {hr_val} BPM "
-                f"{lungs_emoji} O2: {o2_val}% "
+                f"{lungs_emoji} Oxygen: {o2_val}% "
                 f"{sleep_emoji} {status}"
             )
 
@@ -126,3 +126,4 @@ def _fallback_sleep_status(mov_val):
         return "Sleeping", "😴"
     else:
         return "Awake", "👁️"
+
