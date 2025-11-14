@@ -68,38 +68,27 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 5. DETERMINE SLEEP STATUS (tighter logic for awake mismatches)
+            # 5. DETERMINE SLEEP STATUS — sleep_state first
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
                 sleep_emoji = "👶"
             else:
-                # Start with sleep_state
-                used_sleep_state = False
                 if sleep_state_code is not None:
                     if sleep_state_code == 8:
                         status = "Deep Sleep"
                         sleep_emoji = "😴"
-                        used_sleep_state = True
                     elif 1 <= sleep_state_code <= 7:
                         status = "Light Sleep"
-                        sleep_emoji = "🥱"
-                        used_sleep_state = True
+                        sleep_emoji = "😴"
                     elif sleep_state_code == 0:
                         status = "Awake"
                         sleep_emoji = "👁️"
-                        used_sleep_state = True
-
-                # Fallback to movement (tighter: >2 = Awake to catch wiggliness)
-                if not used_sleep_state or mov_val > 4:  # Override if very wiggly
-                    if mov_val <= 2:
-                        status = "Deep Sleep"
-                        sleep_emoji = "😴"
-                    elif mov_val <= 4:
-                        status = "Light Sleep"
-                        sleep_emoji = "🥱"
                     else:
-                        status = "Awake"
-                        sleep_emoji = "👁️"
+                        # Invalid code → fallback to movement
+                        status, sleep_emoji = _fallback_sleep_status(mov_val)
+                else:
+                    # No sleep_state → fallback to movement
+                    status, sleep_emoji = _fallback_sleep_status(mov_val)
 
             # 6. CALCULATE AGE
             age_str = ""
@@ -114,7 +103,7 @@ async def get_baby():
                 except Exception:
                     age_str = "Age error"
 
-            # 7. FINAL MESSAGE
+            # 7. FINAL MESSAGE WITH TWITCH SHORTCODES
             baby_emoji = "👶"
             heart_emoji = "❤️"
             lungs_emoji = "🫁"
@@ -132,3 +121,12 @@ async def get_baby():
             print("Owlet error:", e)
             return PlainTextResponse("Baby stats unavailable")
 
+
+# Helper: fallback when sleep_state is missing or invalid
+def _fallback_sleep_status(mov_val):
+    if mov_val == 0:
+        return "Deep Sleep", "😴"
+    elif mov_val <= 3:
+        return "Light Sleep", "🥱"
+    else:
+        return "Awake", "👁️"
