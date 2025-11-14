@@ -26,6 +26,20 @@ async def root():
 
 @app.get("/baby")
 async def get_baby():
+    # 0. CALCULATE AGE (always shown, done early)
+    age_str = "Age unavailable"
+    if BABY_BIRTHDATE:
+        try:
+            birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
+            delta = datetime.now() - birth
+            total_days = delta.days
+            months = total_days // 30
+            days = total_days % 30
+            age_str = f"{months} month{'' if months == 1 else 's'}, {days} day{'' if days == 1 else 's'} old"
+        except Exception as e:
+            print("Age parse error:", e)
+            age_str = "Age error"
+
     async with aiohttp.ClientSession() as session:
         try:
             # 1. LOGIN
@@ -41,7 +55,8 @@ async def get_baby():
                     sock_device = dev
                     break
             if not sock_device:
-                raise HTTPException(500, "No Dream Sock 3 found")
+                # Fallback: name + age on no device
+                return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
 
             # 3. FETCH LIVE DATA WITH RETRY
             sock = Sock(api, sock_device)
@@ -55,29 +70,17 @@ async def get_baby():
                 if attempt < 2:
                     await asyncio.sleep(10)
 
-            # 4. CALCULATE AGE (always shown)
-            age_str = "Age unavailable"
-            if BABY_BIRTHDATE:
-                try:
-                    birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
-                    delta = datetime.now() - birth
-                    total_days = delta.days
-                    months = total_days // 30
-                    days = total_days % 30
-                    age_str = f"{months} month{'' if months == 1 else 's'}, {days} day{'' if days == 1 else 's'} old"
-                except Exception as e:
-                    print("Age parse error:", e)
-                    age_str = "Age error"
-
-            # 5. CHECK IF SOCK IS OFF
-            sock_off = raw.get("sock_off")  # 1 = off, 0 = on
-            if sock_off == 1:
-                # Sock is NOT on → only name + age
-                return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
-
-            # 6. SOCK IS ON → extract live data
+            # 4. CHECK IF SOCK IS OFF (new reliable logic)
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
+            sock_off = raw.get("sock_off")  # Secondary check if available
+
+            # Sock off if: both HR/O2 are 0, OR sock_off == 1
+            if (hr == 0 and o2 == 0) or sock_off == 1:
+                print("Sock detected as OFF – showing name + age only")
+                return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
+
+            # 5. SOCK IS ON → extract other values
             sleep_state_code = raw.get("sleep_state")
             mov = raw.get("movement", 0)
 
@@ -85,7 +88,7 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 7. DETERMINE SLEEP STATUS
+            # 6. DETERMINE SLEEP STATUS
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
                 sleep_emoji = "👶"
@@ -100,7 +103,7 @@ async def get_baby():
                 else:
                     status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # 8. FINAL MESSAGE (with live data)
+            # 7. FINAL MESSAGE (with live data)
             baby_emoji = "👶"
             heart_emoji = "❤️"
             lungs_emoji = "🫁"
@@ -114,18 +117,7 @@ async def get_baby():
 
         except Exception as e:
             print("Owlet error:", e)
-            # Fallback: still show name + age if possible
-            age_str = "Age unavailable"
-            if BABY_BIRTHDATE:
-                try:
-                    birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
-                    delta = datetime.now() - birth
-                    total_days = delta.days
-                    months = total_days // 30
-                    days = total_days % 30
-                    age_str = f"{months} month{'' if months == 1 else 's'}, {days} day{'' if days == 1 else 's'} old"
-                except:
-                    pass
+            # Fallback: always show name + age
             return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
 
 
