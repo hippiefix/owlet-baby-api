@@ -56,7 +56,7 @@ async def get_baby():
                     break
             if not sock_device:
                 # Fallback: name + age on no device
-                return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
+                return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
             # 3. FETCH LIVE DATA WITH RETRY
             sock = Sock(api, sock_device)
@@ -127,3 +127,4 @@ def _fallback_sleep_status(mov_val):
         return "Sleeping", "😴"
     else:
         return "Awake", "👁️"
+
