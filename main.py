@@ -9,7 +9,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
-
 app = FastAPI()
 
 # === CONFIG ===
@@ -47,18 +46,36 @@ async def get_baby():
             # 3. FETCH LIVE DATA WITH RETRY
             sock = Sock(api, sock_device)
             raw = {}
-
             for attempt in range(3):
                 props = await sock.update_properties()
                 raw = props.get("properties", {})
                 print("Raw properties (attempt", attempt + 1, "):", raw)
-
                 if raw.get("heart_rate") is not None or raw.get("oxygen_saturation") is not None:
                     break
                 if attempt < 2:
                     await asyncio.sleep(10)
 
-            # 4. EXTRACT VALUES
+            # 4. CALCULATE AGE (always shown)
+            age_str = "Age unavailable"
+            if BABY_BIRTHDATE:
+                try:
+                    birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
+                    delta = datetime.now() - birth
+                    total_days = delta.days
+                    months = total_days // 30
+                    days = total_days % 30
+                    age_str = f"{months} month{'' if months == 1 else 's'}, {days} day{'' if days == 1 else 's'} old"
+                except Exception as e:
+                    print("Age parse error:", e)
+                    age_str = "Age error"
+
+            # 5. CHECK IF SOCK IS OFF
+            sock_off = raw.get("sock_off")  # 1 = off, 0 = on
+            if sock_off == 1:
+                # Sock is NOT on → only name + age
+                return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
+
+            # 6. SOCK IS ON → extract live data
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
             sleep_state_code = raw.get("sleep_state")
@@ -68,25 +85,37 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 5. SIMPLIFIED SLEEP STATUS: All sleep = Sleeping, only code 0 = Awake
+            # 7. DETERMINE SLEEP STATUS
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
                 sleep_emoji = "👶"
             else:
-                # Use sleep_state first
                 if sleep_state_code is not None:
-                    if sleep_state_code == 0:  # Only explicit awake
+                    if sleep_state_code == 0:
                         status = "Awake"
                         sleep_emoji = "👁️"
-                    else:  # 1-8+ = any sleep
+                    else:
                         status = "Sleeping"
                         sleep_emoji = "😴"
                 else:
-                    # No sleep_state → fallback to movement (high = Awake)
                     status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # 6. CALCULATE AGE
-            age_str = ""
+            # 8. FINAL MESSAGE (with live data)
+            baby_emoji = "👶"
+            heart_emoji = "❤️"
+            lungs_emoji = "🫁"
+            message = (
+                f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
+                f"{heart_emoji} Heart: {hr_val} BPM "
+                f"{lungs_emoji} Oxygen: {o2_val}% "
+                f"{sleep_emoji} {status}"
+            )
+            return PlainTextResponse(message)
+
+        except Exception as e:
+            print("Owlet error:", e)
+            # Fallback: still show name + age if possible
+            age_str = "Age unavailable"
             if BABY_BIRTHDATE:
                 try:
                     birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
@@ -95,26 +124,9 @@ async def get_baby():
                     months = total_days // 30
                     days = total_days % 30
                     age_str = f"{months} month{'' if months == 1 else 's'}, {days} day{'' if days == 1 else 's'} old"
-                except Exception:
-                    age_str = "Age error"
-
-            # 7. FINAL MESSAGE
-            baby_emoji = "👶"
-            heart_emoji = "❤️"
-            lungs_emoji = "🫁"
-
-            message = (
-                f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
-                f"{heart_emoji} Heart: {hr_val} BPM "
-                f"{lungs_emoji} Oxygen: {o2_val}% "
-                f"{sleep_emoji} {status}"
-            )
-
-            return PlainTextResponse(message)
-
-        except Exception as e:
-            print("Owlet error:", e)
-            return PlainTextResponse("Baby stats unavailable")
+                except:
+                    pass
+            return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
 
 
 # Helper: fallback when sleep_state is missing
