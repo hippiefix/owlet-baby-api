@@ -68,37 +68,38 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 5. DECODE SLEEP STATE FROM REAL CODE (priority over movement)
+            # 5. DETERMINE SLEEP STATUS (tighter logic for awake mismatches)
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
-                sleep_emoji = "👶"
+                sleep_emoji = ":baby:"
             else:
+                # Start with sleep_state
+                used_sleep_state = False
                 if sleep_state_code is not None:
-                    # Decode Owlet sleep_state enum
                     if sleep_state_code == 8:
                         status = "Deep Sleep"
-                        sleep_emoji = "😴"
+                        sleep_emoji = ":sleeping:"
+                        used_sleep_state = True
                     elif 1 <= sleep_state_code <= 7:
                         status = "Light Sleep"
-                        sleep_emoji = "🥱"
+                        sleep_emoji = ":yawning_face:"
+                        used_sleep_state = True
                     elif sleep_state_code == 0:
                         status = "Awake"
-                        sleep_emoji = "👁️"
-                    else:
-                        # Rare/undefined → fallback to movement
-                        status = "Evaluating Sleep"
-                        sleep_emoji = "💤"
-                else:
-                    # No sleep_state → use movement fallback
-                    if mov_val == 0:
+                        sleep_emoji = ":eyes:"
+                        used_sleep_state = True
+
+                # Fallback to movement (tighter: >2 = Awake to catch wiggliness)
+                if not used_sleep_state or mov_val > 4:  # Override if very wiggly
+                    if mov_val <= 2:
                         status = "Deep Sleep"
-                        sleep_emoji = "😴"
-                    elif mov_val <= 3:
+                        sleep_emoji = ":sleeping:"
+                    elif mov_val <= 4:
                         status = "Light Sleep"
-                        sleep_emoji = "🥱"
+                        sleep_emoji = ":yawning_face:"
                     else:
                         status = "Awake"
-                        sleep_emoji = "👁️"
+                        sleep_emoji = ":eyes:"
 
             # 6. CALCULATE AGE
             age_str = ""
@@ -113,10 +114,10 @@ async def get_baby():
                 except Exception:
                     age_str = "Age error"
 
-            # 7. FINAL MESSAGE WITH TWITCH EMOJI SHORTCODES
-            baby_emoji = "👶"
-            heart_emoji = "❤️"
-            lungs_emoji = "🫁"
+            # 7. FINAL MESSAGE
+            baby_emoji = ":baby:"
+            heart_emoji = ":heart:"
+            lungs_emoji = ":lungs:"
 
             message = (
                 f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
@@ -130,5 +131,3 @@ async def get_baby():
         except Exception as e:
             print("Owlet error:", e)
             return PlainTextResponse("Baby stats unavailable")
-
-
