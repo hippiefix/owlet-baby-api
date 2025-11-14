@@ -68,24 +68,21 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 5. SIMPLIFIED SLEEP STATUS: Light + Deep = Sleeping
+            # 5. SIMPLIFIED SLEEP STATUS: All sleep = Sleeping, only code 0 = Awake
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
                 sleep_emoji = "👶"
             else:
                 # Use sleep_state first
                 if sleep_state_code is not None:
-                    if sleep_state_code in [1, 2, 3, 4, 5, 6, 7, 8]:  # Light or Deep
-                        status = "Sleeping"
-                        sleep_emoji = "😴"
-                    elif sleep_state_code == 0:
+                    if sleep_state_code == 0:  # Only explicit awake
                         status = "Awake"
                         sleep_emoji = "👁️"
-                    else:
-                        # Invalid → fallback to movement
-                        status, sleep_emoji = _fallback_sleep_status(mov_val)
+                    else:  # 1-8+ = any sleep
+                        status = "Sleeping"
+                        sleep_emoji = "😴"
                 else:
-                    # No sleep_state → fallback to movement
+                    # No sleep_state → fallback to movement (high = Awake)
                     status, sleep_emoji = _fallback_sleep_status(mov_val)
 
             # 6. CALCULATE AGE
@@ -120,10 +117,9 @@ async def get_baby():
             return PlainTextResponse("Baby stats unavailable")
 
 
-# Helper: fallback when sleep_state is missing or invalid
+# Helper: fallback when sleep_state is missing
 def _fallback_sleep_status(mov_val):
     if mov_val <= 3:
         return "Sleeping", "😴"
     else:
         return "Awake", "👁️"
-
