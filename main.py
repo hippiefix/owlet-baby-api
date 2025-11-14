@@ -71,35 +71,35 @@ async def get_baby():
             # 5. DETERMINE SLEEP STATUS (tighter logic for awake mismatches)
             if hr_val == "—" and o2_val == "—":
                 status = "Sock on – no signal"
-                sleep_emoji = ":baby:"
+                sleep_emoji = "👶"
             else:
                 # Start with sleep_state
                 used_sleep_state = False
                 if sleep_state_code is not None:
                     if sleep_state_code == 8:
                         status = "Deep Sleep"
-                        sleep_emoji = ":sleeping:"
+                        sleep_emoji = "😴"
                         used_sleep_state = True
                     elif 1 <= sleep_state_code <= 7:
                         status = "Light Sleep"
-                        sleep_emoji = ":yawning_face:"
+                        sleep_emoji = "🥱"
                         used_sleep_state = True
                     elif sleep_state_code == 0:
                         status = "Awake"
-                        sleep_emoji = ":eyes:"
+                        sleep_emoji = "👁️"
                         used_sleep_state = True
 
                 # Fallback to movement (tighter: >2 = Awake to catch wiggliness)
                 if not used_sleep_state or mov_val > 4:  # Override if very wiggly
                     if mov_val <= 2:
                         status = "Deep Sleep"
-                        sleep_emoji = ":sleeping:"
+                        sleep_emoji = "😴"
                     elif mov_val <= 4:
                         status = "Light Sleep"
-                        sleep_emoji = ":yawning_face:"
+                        sleep_emoji = "🥱"
                     else:
                         status = "Awake"
-                        sleep_emoji = ":eyes:"
+                        sleep_emoji = "👁️"
 
             # 6. CALCULATE AGE
             age_str = ""
@@ -115,9 +115,9 @@ async def get_baby():
                     age_str = "Age error"
 
             # 7. FINAL MESSAGE
-            baby_emoji = ":baby:"
-            heart_emoji = ":heart:"
-            lungs_emoji = ":lungs:"
+            baby_emoji = "👶"
+            heart_emoji = "❤️"
+            lungs_emoji = "🫁"
 
             message = (
                 f"{baby_emoji} Baby {BABY_NAME} is {age_str} "
@@ -131,3 +131,4 @@ async def get_baby():
         except Exception as e:
             print("Owlet error:", e)
             return PlainTextResponse("Baby stats unavailable")
+
