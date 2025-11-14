@@ -55,8 +55,7 @@ async def get_baby():
                     sock_device = dev
                     break
             if not sock_device:
-                # Fallback: name + age on no device
-                return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
+                return PlainTextResponse(f"👶 {BABY_NAME} is {age_str}")
 
             # 3. FETCH LIVE DATA WITH RETRY
             sock = Sock(api, sock_device)
@@ -70,17 +69,16 @@ async def get_baby():
                 if attempt < 2:
                     await asyncio.sleep(10)
 
-            # 4. CHECK IF SOCK IS OFF (new reliable logic)
+            # 4. CHECK IF SOCK IS OFF
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
-            sock_off = raw.get("sock_off")  # Secondary check if available
+            sock_off = raw.get("sock_off")
 
-            # Sock off if: both HR/O2 are 0, OR sock_off == 1
             if (hr == 0 and o2 == 0) or sock_off == 1:
                 print("Sock detected as OFF – showing name + age only")
-                return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
+                return PlainTextResponse(f"👶 {BABY_NAME} is {age_str}")
 
-            # 5. SOCK IS ON → extract other values
+            # 5. SOCK IS ON → extract values
             sleep_state_code = raw.get("sleep_state")
             mov = raw.get("movement", 0)
 
@@ -88,22 +86,24 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 6. DETERMINE SLEEP STATUS
-            if hr_val == "—" and o2_val == "—":
-                status = "Sock on – no signal"
-                sleep_emoji = "👶"
-            else:
-                if sleep_state_code is not None:
-                    if sleep_state_code == 0:
-                        status = "Awake"
-                        sleep_emoji = "👁️"
-                    else:
-                        status = "Sleeping"
-                        sleep_emoji = "😴"
+            # === 6. SMART SLEEP STATUS: MOVEMENT OVERRIDES LAGGY SLEEP_STATE ===
+            # Default: trust sleep_state
+            if sleep_state_code is not None:
+                if sleep_state_code == 0:
+                    status = "Awake"
+                    sleep_emoji = "👁️"
                 else:
-                    status, sleep_emoji = _fallback_sleep_status(mov_val)
+                    status = "Sleeping"
+                    sleep_emoji = "😴"
+            else:
+                status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # 7. FINAL MESSAGE (with live data)
+            # OVERRIDE: If baby is moving a lot → force Awake
+            if mov_val > 4:
+                status = "Awake"
+                sleep_emoji = "👁️"
+
+            # 7. FINAL MESSAGE
             baby_emoji = "👶"
             heart_emoji = "❤️"
             lungs_emoji = "🫁"
@@ -117,8 +117,7 @@ async def get_baby():
 
         except Exception as e:
             print("Owlet error:", e)
-            # Fallback: always show name + age
-            return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
+            return PlainTextResponse(f"Baby {BABY_NAME} is {age_str}")
 
 
 # Helper: fallback when sleep_state is missing
@@ -127,5 +126,3 @@ def _fallback_sleep_status(mov_val):
         return "Sleeping", "😴"
     else:
         return "Awake", "👁️"
-
-
