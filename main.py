@@ -26,7 +26,7 @@ async def root():
 
 @app.get("/baby")
 async def get_baby():
-    # 0. CALCULATE AGE (always shown, done early)
+    # 0. CALCULATE AGE (always shown)
     age_str = "Age unavailable"
     if BABY_BIRTHDATE:
         try:
@@ -73,21 +73,18 @@ async def get_baby():
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
             sock_off = raw.get("sock_off")
-
             if (hr == 0 and o2 == 0) or sock_off == 1:
                 print("Sock detected as OFF – showing name + age only")
                 return PlainTextResponse(f"👶 {BABY_NAME} is {age_str}")
 
-            # 5. SOCK IS ON → extract values
+            # 5. EXTRACT VALUES
             sleep_state_code = raw.get("sleep_state")
             mov = raw.get("movement", 0)
-
-            hr_val = int(hr) if hr is not None else "—"
-            o2_val = int(o2) if o2 is not None else "—"
+            hr_val = int(hr) if hr is not None else 0
+            o2_val = int(o2) if o2 is not None else 0
             mov_val = int(mov)
 
-            # === 6. SMART SLEEP STATUS: MOVEMENT OVERRIDES LAGGY SLEEP_STATE ===
-            # Default: trust sleep_state
+            # === 6. DETERMINE SLEEP STATUS (BASE) ===
             if sleep_state_code is not None:
                 if sleep_state_code == 0:
                     status = "Awake"
@@ -98,8 +95,8 @@ async def get_baby():
             else:
                 status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # OVERRIDE: If baby is moving a lot → force Awake
-            if mov_val > 4:
+            # === FINAL OVERRIDE: MOVEMENT OR HIGH HR = AWAKE (BULLETPROOF) ===
+            if mov_val > 0 or hr_val > 115:
                 status = "Awake"
                 sleep_emoji = "👁️"
 
