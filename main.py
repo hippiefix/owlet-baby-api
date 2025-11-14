@@ -78,7 +78,7 @@ async def get_baby():
             # Sock off if: both HR/O2 are 0, OR sock_off == 1
             if (hr == 0 and o2 == 0) or sock_off == 1:
                 print("Sock detected as OFF – showing name + age only")
-                return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
+                return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
             # 5. SOCK IS ON → extract other values
             sleep_state_code = raw.get("sleep_state")
@@ -118,7 +118,7 @@ async def get_baby():
         except Exception as e:
             print("Owlet error:", e)
             # Fallback: always show name + age
-            return PlainTextResponse(f":baby: Baby {BABY_NAME} is {age_str}")
+            return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
 
 # Helper: fallback when sleep_state is missing
@@ -127,4 +127,5 @@ def _fallback_sleep_status(mov_val):
         return "Sleeping", "😴"
     else:
         return "Awake", "👁️"
+
 
