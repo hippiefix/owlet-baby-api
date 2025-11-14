@@ -26,7 +26,7 @@ async def root():
 
 @app.get("/baby")
 async def get_baby():
-    # 0. CALCULATE AGE (always shown)
+    # 0. CALCULATE AGE (always shown, done early)
     age_str = "Age unavailable"
     if BABY_BIRTHDATE:
         try:
@@ -55,7 +55,7 @@ async def get_baby():
                     sock_device = dev
                     break
             if not sock_device:
-                return PlainTextResponse(f"👶 {BABY_NAME} is {age_str}")
+                return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
             # 3. FETCH LIVE DATA WITH RETRY
             sock = Sock(api, sock_device)
@@ -75,16 +75,17 @@ async def get_baby():
             sock_off = raw.get("sock_off")
             if (hr == 0 and o2 == 0) or sock_off == 1:
                 print("Sock detected as OFF – showing name + age only")
-                return PlainTextResponse(f"👶 {BABY_NAME} is {age_str}")
+                return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
-            # 5. EXTRACT VALUES
+            # 5. SOCK IS ON → extract values
             sleep_state_code = raw.get("sleep_state")
             mov = raw.get("movement", 0)
             hr_val = int(hr) if hr is not None else 0
             o2_val = int(o2) if o2 is not None else 0
             mov_val = int(mov)
 
-            # === 6. DETERMINE SLEEP STATUS (BASE) ===
+            # === 6. SMART SLEEP STATUS: TRUST SLEEP_STATE, OVERRIDE ONLY FOR EXTREME ===
+            # Default: trust sleep_state
             if sleep_state_code is not None:
                 if sleep_state_code == 0:
                     status = "Awake"
@@ -95,8 +96,8 @@ async def get_baby():
             else:
                 status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # === FINAL OVERRIDE: MOVEMENT OR HIGH HR = AWAKE (BULLETPROOF) ===
-            if mov_val > 0 or hr_val > 115:
+            # OVERRIDE: Only for EXTREME awake signals (high HR OR max movement)
+            if hr_val > 130 or mov_val > 25:
                 status = "Awake"
                 sleep_emoji = "👁️"
 
@@ -114,7 +115,7 @@ async def get_baby():
 
         except Exception as e:
             print("Owlet error:", e)
-            return PlainTextResponse(f"Baby {BABY_NAME} is {age_str}")
+            return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
 
 # Helper: fallback when sleep_state is missing
