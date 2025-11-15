@@ -80,24 +80,25 @@ async def get_baby():
             # 5. SOCK IS ON → extract values
             sleep_state_code = raw.get("sleep_state")
             mov = raw.get("movement", 0)
-            hr_val = int(hr) if hr is not None else 0
-            o2_val = int(o2) if o2 is not None else 0
+            hr_val = int(hr) if hr is not None else "—"
+            o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # === 6. SMART SLEEP STATUS: TRUST SLEEP_STATE, OVERRIDE ONLY FOR EXTREME ===
-            # Default: trust sleep_state
+            # === 6. STABLE SLEEP STATUS: TRUST SLEEP_STATE, MINIMAL OVERRIDE ===
+            # Default: trust sleep_state (stable, per Owlet docs)
             if sleep_state_code is not None:
                 if sleep_state_code == 0:
                     status = "Awake"
                     sleep_emoji = "👁️"
-                else:
+                else:  # 1-8+ = Sleeping (light/deep)
                     status = "Sleeping"
                     sleep_emoji = "😴"
             else:
+                # Fallback: movement only if no code
                 status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # OVERRIDE: Only for EXTREME awake signals (high HR OR max movement)
-            if hr_val > 130 or mov_val > 25:
+            # OVERRIDE: Only for EXTREME awake (rare, prevents flip-flops)
+            if mov_val > 25 or hr_val > 150:
                 status = "Awake"
                 sleep_emoji = "👁️"
 
@@ -120,7 +121,7 @@ async def get_baby():
 
 # Helper: fallback when sleep_state is missing
 def _fallback_sleep_status(mov_val):
-    if mov_val <= 3:
+    if mov_val <= 5:  # Tighter for stability
         return "Sleeping", "😴"
     else:
         return "Awake", "👁️"
