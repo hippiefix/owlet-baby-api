@@ -1,50 +1,23 @@
-from fastapi import FastAPI, HTTPException
-from starlette.responses import PlainTextResponse
-from pyowletapi.api import OwletAPI
-from pyowletapi.sock import Sock
-import aiohttp
-import asyncio
-import os
-from datetime import datetime
-from dotenv import load_dotenv
-from dateutil.relativedelta import relativedelta
-
-load_dotenv()
-app = FastAPI()
-
-# === CONFIG ===
-OWLET_REGION = os.getenv("OWLET_REGION", "us")
-OWLET_EMAIL = os.getenv("OWLET_EMAIL")
-OWLET_PASSWORD = os.getenv("OWLET_PASSWORD")
-BABY_NAME = os.getenv("BABY_NAME", "Baby")
-BABY_BIRTHDATE = os.getenv("BABY_BIRTHDATE")  # MM/DD/YY
-
-
-@app.get("/")
-async def root():
-    return {"message": "Owlet Baby API – use /baby for live stats"}
-
-
 @app.get("/baby")
 async def get_baby():
     # 0. CALCULATE AGE (always shown, done early)
-age_str = "Age unavailable"
-if BABY_BIRTHDATE:
-    try:
-        birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
-        now = datetime.now()
+    age_str = "Age unavailable"
+    if BABY_BIRTHDATE:
+        try:
+            birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
+            now = datetime.now()
 
-        rd = relativedelta(now, birth)
+            rd = relativedelta(now, birth)
 
-        total_months = rd.years * 12 + rd.months
+            total_months = rd.years * 12 + rd.months
 
-        age_str = (
-            f"{total_months} month{'s' if total_months != 1 else ''}, "
-            f"{rd.days} day{'s' if rd.days != 1 else ''} old"
-        )
-    except Exception as e:
-        print("Age parse error:", e)
-        age_str = "Age error"
+            age_str = (
+                f"{total_months} month{'s' if total_months != 1 else ''}, "
+                f"{rd.days} day{'s' if rd.days != 1 else ''} old"
+            )
+        except Exception as e:
+            print("Age parse error:", e)
+            age_str = "Age error"
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -90,20 +63,18 @@ if BABY_BIRTHDATE:
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # === 6. STABLE SLEEP STATUS: TRUST SLEEP_STATE, MINIMAL OVERRIDE ===
-            # Default: trust sleep_state (stable, per Owlet docs)
+            # === 6. STABLE SLEEP STATUS ===
             if sleep_state_code is not None:
                 if sleep_state_code == 0:
                     status = "Awake"
                     sleep_emoji = "👁️"
-                else:  # 1-8+ = Sleeping (light/deep)
+                else:
                     status = "Sleeping"
                     sleep_emoji = "😴"
             else:
-                # Fallback: movement only if no code
                 status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # OVERRIDE: Only for EXTREME awake (rare, prevents flip-flops)
+            # Override extreme awake
             if mov_val > 25 or hr_val > 150:
                 status = "Awake"
                 sleep_emoji = "👁️"
@@ -123,12 +94,3 @@ if BABY_BIRTHDATE:
         except Exception as e:
             print("Owlet error:", e)
             return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
-
-
-# Helper: fallback when sleep_state is missing
-def _fallback_sleep_status(mov_val):
-    if mov_val <= 5:  # Tighter for stability
-        return "Sleeping", "😴"
-    else:
-        return "Awake", "👁️"
-
