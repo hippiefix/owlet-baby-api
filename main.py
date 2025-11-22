@@ -27,52 +27,46 @@ async def root():
 
 @app.get("/baby")
 async def get_baby():
-    # 0. CALCULATE AGE (always shown, done early)
-if BABY_BIRTHDATE:
-    try:
-        birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
-        now = datetime.now()
-        rd = relativedelta(now, birth)
+    # 0. CALCULATE AGE 
+    if BABY_BIRTHDATE:
+        try:
+            birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
+            now = datetime.now()
+            rd = relativedelta(now, birth)
+            total_months = rd.years * 12 + rd.months
+            days = rd.days
 
-        total_months = rd.years * 12 + rd.months
-        days = rd.days
-
-        if total_months == 0:
-            # Less than 1 month old → show days only
-            if days == 0:
-                age_str = "newborn! (0 days)"
+            if total_months == 0:
+                if days == 0:
+                    age_str = "newborn! (0 days)"
+                else:
+                    age_str = f"{days} day{'s' if days != 1 else ''} old"
+            elif total_months < 24:
+                weeks = days // 7
+                remaining_days = days % 7
+                if weeks == 0:
+                    age_str = f"{total_months} month{'s' if total_months != 1 else ''} old"
+                elif remaining_days == 0:
+                    age_str = f"{total_months} month{'s' if total_months != 1 else ''} and {weeks} week{'s' if weeks != 1 else ''} old"
+                else:
+                    age_str = f"{total_months}m {weeks}w {remaining_days}d old"
             else:
-                age_str = f"{days} day{'s' if days != 1 else ''} old"
+                years = rd.years
+                months_left = rd.months
+                if months_left == 0:
+                    age_str = f"{years} year{'s' if years != 1 else ''} old"
+                else:
+                    age_str = f"{years} year{'s' if years != 1 else ''} and {months_left} month{'s' if months_left != 1 else ''} old"
+        except Exception as e:
+            print("Age parse error:", e)
+            age_str = "Age error"
+    else:
+        age_str = "Age unavailable"
 
-        elif total_months < 24:
-            # 1–23 months → show months + weeks (this is what 99% of parents want)
-            weeks = days // 7
-            remaining_days = days % 7
-
-            if weeks == 0:
-                age_str = f"{total_months} month{'s' if total_months != 1 else ''} old"
-            elif remaining_days == 0:
-                age_str = f"{total_months} month{'s' if total_months != 1 else ''} and {weeks} week{'s' if weeks != 1 else ''} old"
-            else:
-                age_str = f"{total_months}m {weeks}w {remaining_days}d old"   # short & sweet for notifications
-
-        else:
-            # 2+ years → switch to years + months
-            years = rd.years
-            months_left = rd.months
-            if months_left == 0:
-                age_str = f"{years} year{'s' if years != 1 else ''} old"
-            else:
-                age_str = f"{years} year{'s' if years != 1 else ''} and {months_left} month{'s' if months_left != 1 else ''} old"
-
-    except Exception as e:
-        print("Age parse error:", e)
-        age_str = "Age error"
-else:
-    age_str = "Age unavailable"
-
+    
     async with aiohttp.ClientSession() as session:
         try:
+            
             # 1. LOGIN
             api = OwletAPI(OWLET_REGION, OWLET_EMAIL, OWLET_PASSWORD, session=session)
             await api.authenticate()
@@ -156,5 +150,6 @@ def _fallback_sleep_status(mov_val):
         return "Sleeping", "😴"
     else:
         return "Awake", "👁️"
+
 
 
