@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 from dateutil.relativedelta import relativedelta
+from zoneinfo import ZoneInfo
 
 load_dotenv()
 app = FastAPI()
@@ -28,12 +29,18 @@ async def root():
 @app.get("/baby")
 async def get_baby():
 
-    # 0. CALCULATE AGE (always shown, done early)
+    # 0. CALCULATE AGE (PACIFIC TIME)
     age_str = "Age unavailable"
     if BABY_BIRTHDATE:
         try:
+            pacific = ZoneInfo("America/Los_Angeles")
+
+            # Parse birthdate and attach PT timezone
             birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y")
-            now = datetime.now()
+            birth = birth.replace(tzinfo=pacific)
+
+            # Now in Pacific time
+            now = datetime.now(pacific)
 
             rd = relativedelta(now, birth)
             total_months = rd.years * 12 + rd.months
