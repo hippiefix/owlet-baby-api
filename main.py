@@ -94,7 +94,7 @@ async def get_baby():
                 print("Sock detected as OFF – showing name + age only")
                 return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
-            # 5. SOCK IS ON → extract values
+            # 5. VALUES
             sleep_state_code = raw.get("sleep_state")
             mov = raw.get("movement", 0)
 
@@ -102,18 +102,21 @@ async def get_baby():
             o2_val = int(o2) if o2 is not None else "—"
             mov_val = int(mov)
 
-            # 6. STABLE SLEEP STATUS
-            if sleep_state_code is not None:
+            # 6. IMPROVED SLEEP LOGIC (Option 3)
+            # If movement is above 2, force awake
+            if mov_val > 2:
+                status = "Awake"
+                sleep_emoji = "👁️"
+            else:
+                # movement <= 2 → fall back to Owlet sleep_state
                 if sleep_state_code == 0:
                     status = "Awake"
                     sleep_emoji = "👁️"
                 else:
                     status = "Sleeping"
                     sleep_emoji = "😴"
-            else:
-                status, sleep_emoji = _fallback_sleep_status(mov_val)
 
-            # OVERRIDE: extreme awake
+            # EXTREME OVERRIDE
             if mov_val > 25 or hr_val > 150:
                 status = "Awake"
                 sleep_emoji = "👁️"
@@ -133,7 +136,7 @@ async def get_baby():
             return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
 
-# Helper: fallback when sleep_state is missing
+# Helper (kept for future expansion)
 def _fallback_sleep_status(mov_val):
     if mov_val <= 5:
         return "Sleeping", "😴"
