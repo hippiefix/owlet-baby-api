@@ -4,4 +4,5 @@ pyowletapi
 aiohttp
 python-dotenv
 python-dateutil
+discord.py
 
