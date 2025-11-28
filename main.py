@@ -23,17 +23,11 @@ BABY_NAME = os.getenv("BABY_NAME", "Baby")
 BABY_BIRTHDATE = os.getenv("BABY_BIRTHDATE")  # MM/DD/YY
 
 
-# ===========================
-# ROOT ENDPOINT
-# ===========================
 @app.get("/")
 async def root():
     return {"message": "Owlet Baby API – use /baby for live stats"}
 
 
-# ===========================
-# BABY DATA ENDPOINT
-# ===========================
 @app.get("/baby")
 async def get_baby():
 
@@ -46,7 +40,6 @@ async def get_baby():
         try:
             pacific = ZoneInfo("America/Los_Angeles")
 
-            # Parse MM/DD/YY
             birth = datetime.strptime(BABY_BIRTHDATE, "%m/%d/%y").replace(tzinfo=pacific)
             now = datetime.now(pacific)
 
@@ -62,7 +55,7 @@ async def get_baby():
             age_str = "Age error"
 
     # ---------------------------
-    # 1. OWLET LOGIN + DEVICE FIND
+    # 1. OWLET LOGIN + DEVICE
     # ---------------------------
     async with aiohttp.ClientSession() as session:
         try:
@@ -81,44 +74,31 @@ async def get_baby():
                     sock_device = dev
                     break
 
-            # If no sock device → fallback
+            # No sock device → fallback
             if not sock_device:
                 return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
             # ---------------------------
-            # 2. FETCH LIVE DATA W/ RETRY (SAFE)
+            # 2. FETCH LIVE DATA (NO RETRIES)
             # ---------------------------
             sock = Sock(api, sock_device)
             raw = {}
 
-            for attempt in range(3):
-                try:
-                    props = await sock.update_properties()
-                    raw = props.get("properties", {}) or {}
-
-                    print("Raw properties (attempt", attempt + 1, "):", raw)
-
-                    # If ANY real data appears → stop retry
-                    if (
-                        raw.get("heart_rate") is not None
-                        or raw.get("oxygen_saturation") is not None
-                    ):
-                        break
-
-                except Exception as inner_e:
-                    print(f"Sock update error (attempt {attempt + 1}):", inner_e)
-
-                if attempt < 2:
-                    await asyncio.sleep(10)
+            try:
+                props = await sock.update_properties()
+                raw = props.get("properties", {}) or {}
+                print("Raw properties:", raw)
+            except Exception as e:
+                print("Sock update error:", e)
+                raw = {}
 
             # ---------------------------
-            # 3. SOCK-OFF DETECTION
+            # 3. SOCK-OFF / FAILURE CHECK
             # ---------------------------
             hr = raw.get("heart_rate")
             o2 = raw.get("oxygen_saturation")
             sock_off = raw.get("sock_off")
 
-            # If sock unavailable OR data empty → fallback
             if (
                 not raw
                 or hr is None
@@ -130,7 +110,7 @@ async def get_baby():
                 return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
             # ---------------------------
-            # 4. LIVE VALUES
+            # 4. VALUES + SLEEP LOGIC
             # ---------------------------
             sleep_state_code = raw.get("sleep_state")
             mov = int(raw.get("movement", 0))
@@ -138,10 +118,7 @@ async def get_baby():
             hr_val = int(hr) if hr is not None else "—"
             o2_val = int(o2) if o2 is not None else "—"
 
-            # ---------------------------
-            # 5. IMPROVED SLEEP LOGIC
-            # ---------------------------
-            # Movement > 2 → awake override
+            # Movement > 2 → awake
             if mov > 2:
                 status = "Awake"
                 sleep_emoji = "👁️"
@@ -153,13 +130,13 @@ async def get_baby():
                     status = "Sleeping"
                     sleep_emoji = "😴"
 
-            # Extreme overrides
+            # Extreme override
             if mov > 25 or hr_val > 150:
                 status = "Awake"
                 sleep_emoji = "👁️"
 
             # ---------------------------
-            # 6. FINAL MESSAGE
+            # 5. RETURN LIVE DATA
             # ---------------------------
             message = (
                 f"👶 Baby {BABY_NAME} is {age_str} "
@@ -175,7 +152,7 @@ async def get_baby():
             return PlainTextResponse(f"👶 Baby {BABY_NAME} is {age_str}")
 
 
-# Helper (kept for future use)
+# For future use
 def _fallback_sleep_status(mov_val):
     if mov_val <= 5:
         return "Sleeping", "😴"
